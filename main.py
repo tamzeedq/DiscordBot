@@ -29,7 +29,7 @@ async def coin(ctx):
   randomInt = random.randint(0, 1)
   randomGif = random.randint(1, 7)
   
-  await ctx.send(file = discord.File('coinFlip' + str(randomGif) + '.gif'), delete_after = 5)
+  await ctx.send(file = discord.File('coinFlips/coinFlip' + str(randomGif) + '.gif'), delete_after = 5)
   await asyncio.sleep(5)
   
   if(randomInt == 0):
