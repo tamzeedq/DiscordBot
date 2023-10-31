@@ -22,12 +22,6 @@ async def on_ready():
     client.load_extension("dch")
 
 
-# @client.event
-# async def on_message(message):
-#   if message.content.startswith("chauffeur"):
-#     await message.channel.send("bruh not this again")
-
-
 @client.command()
 async def coin(ctx):
     randomInt = random.randint(0, 1)
