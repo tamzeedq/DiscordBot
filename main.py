@@ -70,7 +70,7 @@ async def testEmbed(ctx):
     embed.set_footer(text='Footer')
     embed.set_image(url='https://wallpaperaccess.com/full/1445568.jpg')
     embed.set_thumbnail(url='https://images.alphacoders.com/927/927310.jpg')
-    embed.set_author(name=userName, icon_url=author.avatar_url)
+    embed.set_author(name=userName, icon_url=author.display_avatar.url)
     embed.add_field(name='Field Name', value='Field Value', inline=False)
     embed.add_field(name='Field Name', value='Field Value', inline=False)
     embed.add_field(name='Field Name', value='Field Value', inline=False)
@@ -90,7 +90,7 @@ async def poll(ctx, *, options):
     author = ctx.message.author
     userName = author.name
     embed.set_thumbnail(url='https://images.alphacoders.com/927/927310.jpg')
-    embed.set_author(name=userName, icon_url=author.avatar_url)
+    embed.set_author(name=userName, icon_url=author.display_avatar.url)
 
     for x in range(len(optionList)):
         embed.add_field(name='Option ' + emoji[x],
@@ -114,7 +114,7 @@ async def hoppon(ctx):
     embed.set_footer(text='Footer')
     embed.set_image(url='https://wallpaperaccess.com/full/1445568.jpg')
     embed.set_thumbnail(url='https://images.alphacoders.com/927/927310.jpg')
-    embed.set_author(name=client.user.name, icon_url=client.user.avatar_url)
+    embed.set_author(name=client.user.name)
     embed.add_field(name='Field Name', value='Field Value', inline=False)
     embed.add_field(name='Field Name', value='Field Value', inline=False)
     embed.add_field(name='Field Name', value='Field Value', inline=False)
@@ -139,7 +139,7 @@ async def salah(ctx, *, contents):
         url=
         "https://www.ancient-origins.net/sites/default/files/field/image/The-Kaaba.jpg"
     )
-    embed.set_author(name=client.user.name, icon_url=client.user.avatar_url)
+    embed.set_author(name=client.user.name, icon_url=client.user.display_avatar.url)
     embed.add_field(name='Fajr', value=f'{prayer_times["Fajr"]}', inline=False)
     embed.add_field(name='Dhuhr',
                     value=f'{prayer_times["Dhuhr"]}',
@@ -170,10 +170,12 @@ async def leave(ctx):
 @client.command()
 async def play(ctx, *, url):
     if not ctx.voice_client:
-        await ctx.send("I'm not connected to a voice channel.")
-        return
-
-    global song_queue
+        if ctx.author.voice:
+            channel = ctx.author.voice.channel
+            await channel.connect()
+        else:
+            await ctx.send("You are not connected to a voice channel.")
+            return
 
     # Add to queue
     song_queue.append(url)
@@ -183,8 +185,6 @@ async def play(ctx, *, url):
         await play_next(ctx)
 
 async def play_next(ctx):
-    global song_queue
-
     if len(song_queue) > 0:
         url = song_queue.pop(0)
 
@@ -194,11 +194,15 @@ async def play_next(ctx):
         }
 
         with YoutubeDL(ydl_opts) as ydl:
-            info = ydl.extract_info(url, download=False)
-            URL = info['url']
+            info_dict = ydl.extract_info(url, download=False)
+            URL = info_dict.get('url', None)
+            video_title = info_dict.get('title', None)
 
+        embed = discord.Embed(title="Now Playing", colour=discord.Colour.red())
+        embed.add_field(name='', value=video_title, inline=True)
+        
         ctx.voice_client.play(discord.FFmpegPCMAudio(URL), after=lambda e: asyncio.run_coroutine_threadsafe(play_next(ctx), client.loop))
-        await ctx.send(f"Now playing: {url}")
+        await ctx.send(embed=embed)
     else:
         await ctx.send("The queue is empty!")
 
@@ -214,7 +218,22 @@ async def skip(ctx):
 async def queue(ctx):
     global song_queue
     if len(song_queue) > 0:
-        await ctx.send(f"Current queue: {', '.join(song_queue)}")
+        
+        ydl_opts = {
+            'quiet': True,
+            'skip_download': True,  # Don't download the video
+        }
+
+        embed = discord.Embed(title="Queue", colour=discord.Colour.red())
+        
+        for i in range(len(song_queue)):
+            url = song_queue[i]
+            with YoutubeDL(ydl_opts) as ydl:
+                info_dict = ydl.extract_info(url, download=False)
+                video_title = info_dict.get('title', None)
+                embed.add_field(name='', value=f'**{i+1}.** {video_title}', inline=False)
+                
+        await ctx.send(embed=embed)
     else:
         await ctx.send("The queue is empty.")
 
