@@ -4,29 +4,35 @@ import random
 import asyncio
 import requests
 import json
-# import youtube_dl
 from yt_dlp import YoutubeDL
 from dotenv import load_dotenv
-
-#import music
 from discord.ext import commands
+import spotipy
+from spotipy.oauth2 import SpotifyClientCredentials
+import re
 
 # Load environment variables
 load_dotenv()
 
-# Set up intents
+# Set up discord bot
 intents = discord.Intents.default()
 intents.message_content = True  # Enable intents to read message content
 
 client = commands.Bot(command_prefix="$", intents=intents)
+bot_token = os.environ['BOT_TOKEN']
 
-# Music-related variables
+# Set up spotify web api client
+spotify_client_id = os.environ['SPOTIFY_CLIENT_ID']
+spotify_client_secret = os.environ['SPOTIFY_CLIENT_SECRET']
+
+auth_manager = SpotifyClientCredentials(client_id=spotify_client_id,
+                                        client_secret=spotify_client_secret)
+sp = spotipy.Spotify(auth_manager=auth_manager)
+
+
+# Hold song queue
 song_queue = []
-
-# cogs = [music]
-
-# for i in range(len(cogs)):
-#   cogs[i].setup(client)
+toggle_autoqueue = False
 
 
 @client.event
@@ -128,7 +134,6 @@ async def salah(ctx, *, contents):
     url = f' http://api.aladhan.com/v1/timingsByCity?city={city}&country={country}&method=2'
     response = requests.get(url)
     data = response.json()
-    print(data)
     prayer_times = data["data"]["timings"]
 
     embed = discord.Embed(title=f"Prayer times for {city}, {country}",
@@ -168,6 +173,20 @@ async def leave(ctx):
         await ctx.send("I'm not in a voice channel.")
 
 @client.command()
+async def autoqueue(ctx):
+    global toggle_autoqueue
+    
+    if ctx.voice_client:
+        toggle_autoqueue = not toggle_autoqueue
+        
+        if toggle_autoqueue:
+            await ctx.send("Autoqueue enabled. I will automatically queue a song based on the last played song.")
+        else:
+            await ctx.send("Autoqueue disabled.")
+    else:
+        await ctx.send("I'm not in a voice channel.")
+
+@client.command()
 async def play(ctx, *, url):
     if not ctx.voice_client:
         if ctx.author.voice:
@@ -197,6 +216,9 @@ async def play_next(ctx):
             info_dict = ydl.extract_info(url, download=False)
             URL = info_dict.get('url', None)
             video_title = info_dict.get('title', None)
+            
+        if toggle_autoqueue and len(song_queue) == 0:
+            await autoqueue_song(ctx, info_dict['title'])
 
         embed = discord.Embed(title="Now Playing", colour=discord.Colour.red())
         embed.add_field(name='', value=video_title, inline=True)
@@ -205,6 +227,67 @@ async def play_next(ctx):
         await ctx.send(embed=embed)
     else:
         await ctx.send("The queue is empty!")
+        await ctx.voice_client.disconnect()
+        
+
+# Function to get recommendations based on a track's metadata
+def get_recommendation(track_name, artist_name):
+    results = sp.search(q=f'track:{track_name} artist:{artist_name}', type='track', limit=1)
+    if results['tracks']['items']:
+        track_id = results['tracks']['items'][0]['id']
+        recommendations = sp.recommendations(seed_tracks=[track_id], limit=1)
+        if recommendations['tracks']:
+            recommended_track = recommendations['tracks'][0]
+            recommended_artist = recommended_track['artists'][0]['name']
+            recommended_song = recommended_track['name']
+            return {
+                'artist': recommended_artist,
+                'song': recommended_song
+            }
+    return None
+
+async def autoqueue_song(ctx, video_title):
+    title_regex = r'(.+?)\s*-\s*([^\(]+)'
+    match = re.match(title_regex, video_title)
+    if match:
+        artist, song = match.groups()
+    else:
+        await ctx.send("Could not parse title for autoqueue.")
+        return
+        
+    # Get a recommended song from Spotify
+    recommended_song = get_recommendation(song.strip(), artist.strip())
+    
+    if recommended_song:
+        # Search for the song on YouTube
+        search_query = f"{recommended_song['artist']} {recommended_song['song']}"
+        youtube_url = search_youtube(search_query)
+
+        if youtube_url:
+            # Add the YouTube URL to the song queue
+            song_queue.append(youtube_url)
+            await ctx.send(f"Auto-queued based on {song} by {artist}: {recommended_song['artist']}, {recommended_song['song']}")
+        else:
+            await ctx.send(f"Could not find a YouTube video for {song} by {artist}.")
+    else:
+        await ctx.send("Could not find a recommendation to autoqueue based on the last played song.")
+
+def search_youtube(query):
+    ydl_opts = {
+        'format': 'bestaudio/best',
+        'quiet': True,
+        'noplaylist': True,
+        'default_search': 'ytsearch',
+        'skip_download': True,
+    }
+
+    with YoutubeDL(ydl_opts) as ydl:
+        info_dict = ydl.extract_info(query, download=False)
+        if 'entries' in info_dict:
+            video = info_dict['entries'][0]  # Take the first result
+            return f"https://www.youtube.com/watch?v={video['id']}"
+        else:
+            return None
 
 @client.command()
 async def skip(ctx):
@@ -252,5 +335,7 @@ async def on_disconnect():
     if ctx.voice_client:
         await ctx.voice_client.disconnect()
 
-my_secret = os.environ['BOT_TOKEN']
-client.run(my_secret)
+
+if __name__ == "__main__":
+    # Run bot
+    client.run(bot_token)
