@@ -11,6 +11,8 @@ import spotipy
 from spotipy.oauth2 import SpotifyClientCredentials
 import re
 
+# ================== SETUP ==================
+
 # Load environment variables
 load_dotenv()
 
@@ -29,17 +31,47 @@ auth_manager = SpotifyClientCredentials(client_id=spotify_client_id,
                                         client_secret=spotify_client_secret)
 sp = spotipy.Spotify(auth_manager=auth_manager)
 
+# FFMPEG options
+FFMPEG_OPTIONS = {'before_options': '-reconnect 1 -reconnect_streamed 1 -reconnect_delay_max 5', 'options': '-vn'}
+
 
 # Hold song queue
+# Song Queue = [Song Metadata...]
+# Song Metadata = {
+#     'title': 'Song Title',
+#     'artist': 'Song Artist',
+#     'url': 'YouTube URL',
+#     'thumbnail': 'Thumbnail URL'
+# }
 song_queue = []
-toggle_autoqueue = False
 
+# Autoqueue toggle
+toggle_autoqueue = False
 
 @client.event
 async def on_ready():
     print(f"{client.user} logged in")
     client.load_extension("dch")
 
+# ================== COMMANDS ==================
+
+@client.command()
+async def hoppon(ctx):
+    embed = discord.Embed(title='Commands',
+                          description='List of commands',
+                          colour=discord.Colour.red())
+
+    embed.set_footer(text='Footer')
+    embed.set_image(url='https://wallpaperaccess.com/full/1445568.jpg')
+    embed.set_thumbnail(url='https://images.alphacoders.com/927/927310.jpg')
+    embed.set_author(name=client.user.name)
+    embed.add_field(name='Field Name', value='Field Value', inline=False)
+    embed.add_field(name='Field Name', value='Field Value', inline=False)
+    embed.add_field(name='Field Name', value='Field Value', inline=False)
+
+    await ctx.send(embed=embed)
+
+# ================== BASIC COMMANDS ==================
 
 @client.command()
 async def coin(ctx):
@@ -86,7 +118,7 @@ async def testEmbed(ctx):
 
 @client.command()
 async def poll(ctx, *, options):
-    optionList = options.split(" ")
+    optionList = options.split(",")
     emoji = ["1️⃣", "2️⃣", "3️⃣", "4️⃣", "5️⃣", "6️⃣", "7️⃣", "8️⃣", "9️⃣"]
 
     embed = discord.Embed(title='Vote',
@@ -110,23 +142,7 @@ async def poll(ctx, *, options):
 
     await ctx.message.delete()
 
-
-@client.command()
-async def hoppon(ctx):
-    embed = discord.Embed(title='Commands',
-                          description='List of commands',
-                          colour=discord.Colour.red())
-
-    embed.set_footer(text='Footer')
-    embed.set_image(url='https://wallpaperaccess.com/full/1445568.jpg')
-    embed.set_thumbnail(url='https://images.alphacoders.com/927/927310.jpg')
-    embed.set_author(name=client.user.name)
-    embed.add_field(name='Field Name', value='Field Value', inline=False)
-    embed.add_field(name='Field Name', value='Field Value', inline=False)
-    embed.add_field(name='Field Name', value='Field Value', inline=False)
-
-    await ctx.send(embed=embed)
-
+# ================== SALAH API COMMAND ==================
 
 @client.command()
 async def salah(ctx, *, contents):
@@ -156,7 +172,9 @@ async def salah(ctx, *, contents):
     embed.add_field(name='Isha', value=f'{prayer_times["Isha"]}', inline=False)
 
     await ctx.send(embed=embed)
-    
+
+# ================== MUSIC COMMANDS ==================
+
 @client.command()
 async def join(ctx):
     if ctx.author.voice:
@@ -187,7 +205,7 @@ async def autoqueue(ctx):
         await ctx.send("I'm not in a voice channel.")
 
 @client.command()
-async def play(ctx, *, url):
+async def play(ctx, *, search_input):
     if not ctx.voice_client:
         if ctx.author.voice:
             channel = ctx.author.voice.channel
@@ -196,35 +214,101 @@ async def play(ctx, *, url):
             await ctx.send("You are not connected to a voice channel.")
             return
 
-    # Add to queue
-    song_queue.append(url)
+    youtube_url_pattern = r"^https:\/\/www\.youtube\.com\/watch\?v=[\w-]+$"
+    spotify_url_pattern = r"^https:\/\/open\.spotify\.com\/(track|album|playlist)\/[\w-]+(\?.*)?$"
+
+    if re.match(youtube_url_pattern, search_input):
+        # Add to queue
+        await queue_youtube_url(ctx, search_input)
+        
+    elif re.match(spotify_url_pattern, search_input):
+        await handle_spotify_link(ctx, search_input)
+    else:
+        # Treat input as a search query
+        url = search_youtube(search_input)
+        
+        # Add to queue
+        if url:
+            await queue_youtube_url(ctx, url)
+        else:
+            await ctx.send("Could not find a video matching your search.")
+            return
 
     # If nothing is currently playing, start the playback
     if not ctx.voice_client.is_playing():
         await play_next(ctx)
 
+async def handle_spotify_link(ctx, spotify_url):
+    # Parse album / playlist / track ID from the Spotify URL
+    url_id = spotify_url.split('/')[-1].split('?')[0]
+    
+    # Determine the type of Spotify link
+    if 'track' in spotify_url:
+        track = sp.track(url_id)
+        query = f"{track['name']} {track['artists'][0]['name']}"
+        youtube_url = search_youtube(query)
+        if youtube_url:
+            await queue_youtube_url(ctx, youtube_url)
+            
+    elif 'album' in spotify_url:
+        album = sp.album(url_id)
+        for track in album['tracks']['items']:
+            query = f"{track['name']} {track['artists'][0]['name']}"
+            youtube_url = search_youtube(query)
+            if youtube_url:
+                await queue_youtube_url(ctx, youtube_url)
+
+    elif 'playlist' in spotify_url:
+        playlist = sp.playlist(url_id)
+        for item in playlist['tracks']['items']:
+            track = item['track']
+            query = f"{track['name']} {track['artists'][0]['name']}"
+            youtube_url = search_youtube(query)
+            if youtube_url:
+                await queue_youtube_url(ctx, youtube_url)
+
+
+async def queue_youtube_url(ctx, url):
+    ydl_opts = {
+        'format': 'bestaudio',
+        'noplaylist': True,
+        'quiet': True,
+    }
+
+    with YoutubeDL(ydl_opts) as ydl:
+        info_dict = ydl.extract_info(url, download=False)
+        fetched_url = info_dict.get('url', None)
+        video_title = info_dict.get('title', None)
+        thumbnail_url = info_dict.get('thumbnail', None)
+        metadata = {
+            'title': video_title,
+            'url': fetched_url,
+            'thumbnail': thumbnail_url,
+        }
+        
+    song_queue.append(metadata)
+    embed = discord.Embed(title="Added to queue", colour=discord.Colour.red())
+    embed.set_thumbnail(url=metadata['thumbnail'])
+    embed.add_field(name='', value=metadata['title'], inline=True)
+    # await ctx.message.delete()
+    await ctx.send(embed=embed)
+    
+
 async def play_next(ctx):
     if len(song_queue) > 0:
-        url = song_queue.pop(0)
-
-        ydl_opts = {
-            'format': 'bestaudio',
-            'noplaylist': True
-        }
-
-        with YoutubeDL(ydl_opts) as ydl:
-            info_dict = ydl.extract_info(url, download=False)
-            URL = info_dict.get('url', None)
-            video_title = info_dict.get('title', None)
-            
-        if toggle_autoqueue and len(song_queue) == 0:
-            await autoqueue_song(ctx, info_dict['title'])
+        song_metadata = song_queue.pop(0)
 
         embed = discord.Embed(title="Now Playing", colour=discord.Colour.red())
-        embed.add_field(name='', value=video_title, inline=True)
+        embed.set_thumbnail(url=song_metadata['thumbnail'])
+        embed.add_field(name='', value=song_metadata['title'], inline=True)
         
-        ctx.voice_client.play(discord.FFmpegPCMAudio(URL), after=lambda e: asyncio.run_coroutine_threadsafe(play_next(ctx), client.loop))
+        ctx.voice_client.play(discord.FFmpegPCMAudio(song_metadata['url'], **FFMPEG_OPTIONS),
+                              after=lambda e: asyncio.run_coroutine_threadsafe(play_next(ctx), client.loop))
         await ctx.send(embed=embed)
+        
+        # Autoqueue a song based on the last played song
+        if toggle_autoqueue and len(song_queue) == 0:
+            await autoqueue_song(ctx, song_metadata['title'])
     else:
         await ctx.send("The queue is empty!")
         await ctx.voice_client.disconnect()
@@ -247,11 +331,24 @@ def get_recommendation(track_name, artist_name):
     return None
 
 async def autoqueue_song(ctx, video_title):
-    title_regex = r'(.+?)\s*-\s*([^\(]+)'
-    match = re.match(title_regex, video_title)
-    if match:
-        artist, song = match.groups()
-    else:
+    # List of regex patterns to try
+    title_patterns = [
+        r'(.+?)\s*-\s*([^\(]+)',  # Format: "Artist - Song Title"
+        r'(.+?)\s*feat\.\s*([^ ]+)',  # Format: "Artist - Song Title feat. Artist"
+        r'(.+?)\s*-\s*([^ ]+)\s*\(.*\)',  # Format: "Artist - Song Title (Extra Info)"
+    ]
+
+    artist = None
+    song = None
+
+    # Loop through the patterns until a match is found
+    for pattern in title_patterns:
+        match = re.match(pattern, video_title)
+        if match:
+            artist, song = match.groups()
+            break
+
+    if not artist or not song:
         await ctx.send("Could not parse title for autoqueue.")
         return
         
@@ -265,8 +362,7 @@ async def autoqueue_song(ctx, video_title):
 
         if youtube_url:
             # Add the YouTube URL to the song queue
-            song_queue.append(youtube_url)
-            await ctx.send(f"Auto-queued based on {song} by {artist}: {recommended_song['artist']}, {recommended_song['song']}")
+            await queue_youtube_url(ctx, youtube_url)
         else:
             await ctx.send(f"Could not find a YouTube video for {song} by {artist}.")
     else:
@@ -299,25 +395,17 @@ async def skip(ctx):
 
 @client.command()
 async def queue(ctx):
-    global song_queue
     if len(song_queue) > 0:
-        
-        ydl_opts = {
-            'quiet': True,
-            'skip_download': True,  # Don't download the video
-        }
 
         embed = discord.Embed(title="Queue", colour=discord.Colour.red())
         
         for i in range(len(song_queue)):
-            url = song_queue[i]
-            with YoutubeDL(ydl_opts) as ydl:
-                info_dict = ydl.extract_info(url, download=False)
-                video_title = info_dict.get('title', None)
-                embed.add_field(name='', value=f'**{i+1}.** {video_title}', inline=False)
-                
+            embed.add_field(name='', value=f'**{i+1}.** {song_queue[i]["title"]}', inline=False)
+
+        await ctx.message.delete()
         await ctx.send(embed=embed)
     else:
+        await ctx.message.delete()
         await ctx.send("The queue is empty.")
 
 @client.command()
