@@ -20,7 +20,7 @@ load_dotenv()
 intents = discord.Intents.default()
 intents.message_content = True  # Enable intents to read message content
 
-client = commands.Bot(command_prefix="$", intents=intents)
+client = commands.Bot(command_prefix="!", intents=intents)
 bot_token = os.environ['BOT_TOKEN']
 
 # Set up spotify web api client
@@ -408,6 +408,22 @@ async def queue(ctx):
         await ctx.message.delete()
         await ctx.send("The queue is empty.")
 
+@client.command()
+async def pause(ctx):
+    if ctx.voice_client and ctx.voice_client.is_playing():
+        ctx.voice_client.pause()
+        await ctx.send("Paused the music.")
+    else:
+        await ctx.send("No music is currently playing or I'm not connected to a voice channel.")
+
+@client.command()
+async def resume(ctx):
+    if ctx.voice_client and ctx.voice_client.is_paused():
+        ctx.voice_client.resume()
+        await ctx.send("Resumed the music.")
+    else:
+        await ctx.send("Music is not paused or I'm not connected to a voice channel.")
+        
 @client.command()
 async def stop(ctx):
     if ctx.voice_client.is_playing():
