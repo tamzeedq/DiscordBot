@@ -6,8 +6,8 @@
 - [ ] Help menu for available commands
 
 ## DevOps
-- [ ] Setup Docker
-- [ ] Setup AWS Host
+- [x] Setup Docker
+- [x] Setup AWS Host
 
 ## Bugs / Optimizations
 - [x] Fix audio cutting out early for some songs and skipping the rest of the song
