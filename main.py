@@ -8,12 +8,29 @@ from discord.ext import commands
 from utils.music import Music
 
 class DiscordBot(commands.Cog):
+    """
+    A cog for managing various bot commands and features.
+
+    Attributes:
+        bot (commands.Bot): The bot instance.
+        music (Music): An instance of the Music class for managing music-related commands.
+    """
+
     def __init__(self, bot):
+        """
+        Initialize the DiscordBot cog.
+
+        Args:
+            bot (commands.Bot): The bot instance.
+        """
         self.bot = bot
         self.music = Music()
 
     @commands.Cog.listener()
     async def on_disconnect(self):
+        """
+        Disconnect all voice clients when the bot disconnects.
+        """
         if self.bot.voice_clients:
             for voice_client in self.bot.voice_clients:
                 await voice_client.disconnect()
@@ -22,8 +39,15 @@ class DiscordBot(commands.Cog):
     async def hoppon(self, ctx):
         """
         Display a help message with descriptions and usage examples for each command.
+        
+        Args:
+            ctx (commands.Context): The context in which the command was invoked.
         """
-        embed = discord.Embed(title="Bot Commands", description="List of available commands and their usage:", colour=discord.Colour.blue())
+        embed = discord.Embed(
+            title="Bot Commands",
+            description="List of available commands and their usage:",
+            colour=discord.Colour.blue()
+        )
         
         commands = [
             {"name": "coin", "description": "Flips a coin and displays the result (Heads or Tails).", "usage": "!coin"},
@@ -43,32 +67,63 @@ class DiscordBot(commands.Cog):
         ]
         
         for cmd in commands:
-            embed.add_field(name=f"**{cmd['name']}**", value=f"**Description:** {cmd['description']}\n**Usage:** {cmd['usage']}", inline=False)
+            embed.add_field(
+                name=f"**{cmd['name']}**",
+                value=f"**Description:** {cmd['description']}\n**Usage:** {cmd['usage']}",
+                inline=False
+            )
         
         await ctx.send(embed=embed)
 
     @commands.command()
     async def coin(self, ctx):
+        """
+        Flips a coin and displays the result (Heads or Tails).
+        
+        Args:
+            ctx (commands.Context): The context in which the command was invoked.
+        """
         randomInt = random.randint(0, 1)
         randomGif = random.randint(1, 7)
 
-        await ctx.send(file=discord.File('coinFlips/coinFlip' + str(randomGif) + '.gif'), delete_after=5)
+        # Send the coin flip animation
+        await ctx.send(file=discord.File(f'coinFlips/coinFlip{randomGif}.gif'), delete_after=5)
         await asyncio.sleep(5)
 
+        # Send the result of the coin flip
         result = "Heads" if randomInt == 0 else "Tails"
         await ctx.send(result)
 
     @commands.command()
     async def randNum(self, ctx, min: int, max: int):
+        """
+        Generates and displays a random number between min and max.
+        
+        Args:
+            ctx (commands.Context): The context in which the command was invoked.
+            min (int): The minimum value of the range.
+            max (int): The maximum value of the range.
+        """
         randomInt = random.randint(min, max)
         await ctx.send(randomInt)
 
     @commands.command()
     async def poll(self, ctx, *, options):
+        """
+        Creates a poll with the provided options and reacts with emojis for voting.
+        
+        Args:
+            ctx (commands.Context): The context in which the command was invoked.
+            options (str): A comma-separated list of poll options.
+        """
         optionList = options.split(",")
         emoji = ["1️⃣", "2️⃣", "3️⃣", "4️⃣", "5️⃣", "6️⃣", "7️⃣", "8️⃣", "9️⃣"]
 
-        embed = discord.Embed(title='Vote', description='React to the message to vote', colour=discord.Colour.blue())
+        embed = discord.Embed(
+            title='Vote',
+            description='React to the message to vote',
+            colour=discord.Colour.blue()
+        )
         author = ctx.message.author
         embed.set_thumbnail(url='https://images.alphacoders.com/927/927310.jpg')
         embed.set_author(name=author.name, icon_url=author.display_avatar.url)
@@ -85,13 +140,23 @@ class DiscordBot(commands.Cog):
 
     @commands.command()
     async def salah(self, ctx, *, contents):
+        """
+        Displays prayer times for the specified city and country.
+        
+        Args:
+            ctx (commands.Context): The context in which the command was invoked.
+            contents (str): The city and country separated by a space.
+        """
         country, city = contents.split(" ")
         url = f'http://api.aladhan.com/v1/timingsByCity?city={city}&country={country}&method=2'
         response = requests.get(url)
         data = response.json()
         prayer_times = data["data"]["timings"]
 
-        embed = discord.Embed(title=f"Prayer times for {city}, {country}", colour=discord.Colour.blue())
+        embed = discord.Embed(
+            title=f"Prayer times for {city}, {country}",
+            colour=discord.Colour.blue()
+        )
         embed.set_footer(text='')
         embed.set_thumbnail(url="https://www.ancient-origins.net/sites/default/files/field/image/The-Kaaba.jpg")
         embed.set_author(name=self.bot.user.name, icon_url=self.bot.user.display_avatar.url)
@@ -105,6 +170,12 @@ class DiscordBot(commands.Cog):
 
     @commands.command()
     async def join(self, ctx):
+        """
+        Makes the bot join the voice channel that the user is currently in.
+        
+        Args:
+            ctx (commands.Context): The context in which the command was invoked.
+        """
         if ctx.author.voice:
             channel = ctx.author.voice.channel
             await channel.connect()
@@ -113,6 +184,12 @@ class DiscordBot(commands.Cog):
 
     @commands.command()
     async def leave(self, ctx):
+        """
+        Makes the bot leave the voice channel.
+        
+        Args:
+            ctx (commands.Context): The context in which the command was invoked.
+        """
         if ctx.voice_client:
             await ctx.voice_client.disconnect()
         else:
@@ -120,10 +197,23 @@ class DiscordBot(commands.Cog):
 
     @commands.command()
     async def autoqueue(self, ctx):
+        """
+        Toggles the autoqueue feature, which adds songs to the queue based on the last played song.
+        
+        Args:
+            ctx (commands.Context): The context in which the command was invoked.
+        """
         await self.music.autoqueue(ctx)
 
     @commands.command()
     async def play(self, ctx, *, search_input):
+        """
+        Plays a song based on the provided search input (YouTube URL, Spotify URL, or search query).
+        
+        Args:
+            ctx (commands.Context): The context in which the command was invoked.
+            search_input (str): The search query or URL for the song.
+        """
         if not ctx.voice_client:
             if ctx.author.voice:
                 channel = ctx.author.voice.channel
@@ -133,9 +223,15 @@ class DiscordBot(commands.Cog):
                 return
 
         await self.music.play_song(ctx, search_input)
-        
+
     @commands.command()
     async def skip(self, ctx):
+        """
+        Skips the currently playing song.
+        
+        Args:
+            ctx (commands.Context): The context in which the command was invoked.
+        """
         if ctx.voice_client.is_playing():
             ctx.voice_client.stop()
         else:
@@ -143,14 +239,32 @@ class DiscordBot(commands.Cog):
 
     @commands.command()
     async def queue(self, ctx):
+        """
+        Displays the current song queue.
+        
+        Args:
+            ctx (commands.Context): The context in which the command was invoked.
+        """
         await self.music.queue(ctx)
 
     @commands.command()
     async def clear(self, ctx):
+        """
+        Clears the song queue.
+        
+        Args:
+            ctx (commands.Context): The context in which the command was invoked.
+        """
         await self.music.clear_queue(ctx)
 
     @commands.command()
     async def pause(self, ctx):
+        """
+        Pauses the currently playing song.
+        
+        Args:
+            ctx (commands.Context): The context in which the command was invoked.
+        """
         if ctx.voice_client and ctx.voice_client.is_playing():
             ctx.voice_client.pause()
             await ctx.send("Paused the music.")
@@ -159,6 +273,12 @@ class DiscordBot(commands.Cog):
 
     @commands.command()
     async def resume(self, ctx):
+        """
+        Resumes the paused song.
+        
+        Args:
+            ctx (commands.Context): The context in which the command was invoked.
+        """
         if ctx.voice_client and ctx.voice_client.is_paused():
             ctx.voice_client.resume()
             await ctx.send("Resumed the music.")
@@ -167,6 +287,12 @@ class DiscordBot(commands.Cog):
             
     @commands.command()
     async def stop(self, ctx):
+        """
+        Stops the currently playing song and clears the queue.
+        
+        Args:
+            ctx (commands.Context): The context in which the command was invoked.
+        """
         if ctx.voice_client.is_playing():
             ctx.voice_client.stop()
             await self.music.clear_queue()
@@ -188,6 +314,9 @@ bot = commands.Bot(command_prefix="!", intents=intents)
 # Add Cog
 @bot.event
 async def on_ready():
+    """
+    Event handler for when the bot is ready.
+    """
     await bot.add_cog(DiscordBot(bot))
     print(f"{bot.user} is now running!")
 
