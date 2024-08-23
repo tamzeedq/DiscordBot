@@ -13,4 +13,4 @@
 - [x] Fix audio cutting out early for some songs and skipping the rest of the song
 - [x] Optimize youtube fetches to happen as soon as song queued and cache results to avoid several fetches
 - [ ] Error handling and aid for various functions incase of poor input
-- [ ] Clean up main.py and format it into a class
+- [x] Clean up main.py and format it into a class
