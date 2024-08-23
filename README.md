@@ -4,6 +4,7 @@ Hoppon is a play on the saying "hop on", as I originally created this bot for th
 **Technologies**
 - Python 3.11 or greater 
 - Docker
+- FFmpeg
 
 ## Setup
 Start by cloning the respository and you will then need to create a `.env` file with the same format as below
@@ -14,6 +15,9 @@ SPOTIFY_CLIENT_ID = ...
 SPOTIFY_CLIENT_SECRET = ...
 ```
 > The ... are to be filled with your personal tokens and secrets
+
+### Download FFmpeg
+FFmpeg is a free software that is required for the discord bot to stream audio files into the voice channels. Follow the following links to see where to [Download](https://www.ffmpeg.org/download.html) and how to [Setup](https://www.wikihow.com/Install-FFmpeg-on-Windows) FFmpeg.
 
 ### Getting a Discord Bot Token and joining your server
 
