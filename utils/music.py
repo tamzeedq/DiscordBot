@@ -169,7 +169,7 @@ class Music:
         }
             
         self.song_queue.append(metadata)
-        embed = discord.Embed(title="Added to queue", colour=discord.Colour.red())
+        embed = discord.Embed(title="Added to queue", colour=discord.Colour.blue())
         embed.set_thumbnail(url=metadata['thumbnail'])
         embed.add_field(name='', value=metadata['title'], inline=True)
         await ctx.send(embed=embed)
@@ -298,7 +298,7 @@ class Music:
         if len(self.song_queue) > 0:
             song_metadata = self.song_queue.pop(0)
 
-            embed = discord.Embed(title="Now Playing", colour=discord.Colour.red())
+            embed = discord.Embed(title="Now Playing", colour=discord.Colour.blue())
             embed.set_thumbnail(url=song_metadata['thumbnail'])
             embed.add_field(name='', value=song_metadata['title'], inline=True)
             
@@ -323,7 +323,7 @@ class Music:
             The context of the command being executed.
         """
         if len(self.song_queue) > 0:
-            embed = discord.Embed(title="Queue", colour=discord.Colour.red())
+            embed = discord.Embed(title="Queue", colour=discord.Colour.blue())
             
             for i in range(len(self.song_queue)):
                 embed.add_field(name='', value=f'**{i+1}.** {self.song_queue[i]["title"]}', inline=False)
@@ -334,7 +334,7 @@ class Music:
             await ctx.message.delete()
             await ctx.send("The queue is empty.")
             
-    def clear_queue(self, ctx):
+    async def clear_queue(self, ctx):
         """
         Clear the song queue.
         """
